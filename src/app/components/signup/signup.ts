@@ -43,12 +43,24 @@ export class Signup {
     this.showPassword = !this.showPassword;
   }
 
+  private emailCheckTimer: any;
+
   onEmailChange() {
+    // Clear previous timer
+    if (this.emailCheckTimer) {
+      clearTimeout(this.emailCheckTimer);
+    }
+
+    // Reset parcels display
+    this.anonymousParcels = [];
+    this.showParcelsFound = false;
+
+    // Only check if email is valid
     if (this.signupData.email && this.isValidEmail(this.signupData.email)) {
-      this.checkAnonymousParcels();
-    } else {
-      this.anonymousParcels = [];
-      this.showParcelsFound = false;
+      // Debounce the API call by 500ms
+      this.emailCheckTimer = setTimeout(() => {
+        this.checkAnonymousParcels();
+      }, 500);
     }
   }
 
