@@ -11,7 +11,7 @@ import { ParcelsService, Parcel } from '../../services/parcels.service';
   standalone: true,
   imports: [FormsModule, RouterLink, CommonModule],
   templateUrl: './signup.html',
-  styleUrl: './signup.css'
+  styleUrls: ['./signup.css']
 })
 export class Signup {
   showPassword = false;
@@ -20,17 +20,18 @@ export class Signup {
   anonymousParcels: Parcel[] = [];
   showParcelsFound = false;
 
-  // Separate name fields
   firstName = '';
   lastName = '';
 
   signupData: CreateUserDto = {
-    name: '', // will be set during submission
+    name: '',
     email: '',
     password: '',
     phone: '',
     role: 'CUSTOMER'
   };
+
+  private emailCheckTimer: any;
 
   constructor(
     private toastService: ToastService,
@@ -43,21 +44,15 @@ export class Signup {
     this.showPassword = !this.showPassword;
   }
 
-  private emailCheckTimer: any;
-
   onEmailChange() {
-    // Clear previous timer
     if (this.emailCheckTimer) {
       clearTimeout(this.emailCheckTimer);
     }
 
-    // Reset parcels display
     this.anonymousParcels = [];
     this.showParcelsFound = false;
 
-    // Only check if email is valid
     if (this.signupData.email && this.isValidEmail(this.signupData.email)) {
-      // Debounce the API call by 500ms
       this.emailCheckTimer = setTimeout(() => {
         this.checkAnonymousParcels();
       }, 500);
@@ -71,29 +66,30 @@ export class Signup {
 
   private checkAnonymousParcels() {
     this.checkingParcels = true;
+
     this.parcelsService.getAnonymousParcels(this.signupData.email).subscribe({
       next: (parcels) => {
         this.checkingParcels = false;
-        this.anonymousParcels = parcels;
-        this.showParcelsFound = parcels.length > 0;
+        this.anonymousParcels = parcels || [];
+        this.showParcelsFound = this.anonymousParcels.length > 0;
 
-        if (parcels.length > 0) {
-          this.toastService.showInfo(`Found ${parcels.length} parcel(s) linked to this email.`);
+        if (this.anonymousParcels.length > 0) {
+          this.toastService.showInfo(`Found ${this.anonymousParcels.length} parcel(s) linked to this email.`);
         }
       },
       error: (error) => {
         this.checkingParcels = false;
         console.error('Error checking anonymous parcels:', error);
+        this.anonymousParcels = [];
+        this.showParcelsFound = false;
       }
     });
   }
 
   onSubmit() {
-    // Combine names
     const fullName = `${this.firstName.trim()} ${this.lastName.trim()}`;
     this.signupData.name = fullName;
 
-    // Validate required fields
     if (!this.firstName || !this.lastName || !this.signupData.email || !this.signupData.password || !this.signupData.phone) {
       this.toastService.showError('Please fill in all required fields');
       return;
@@ -129,7 +125,6 @@ export class Signup {
       error: (error) => {
         this.isLoading = false;
         console.error('Registration failed:', error);
-        // Toast handled in AuthService
       }
     });
   }

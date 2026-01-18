@@ -2,19 +2,13 @@
   <div class="signup-container">
     <div class="form-section">
       <div class="form-content">
-        
-  
-
-        <!-- Form Header -->
         <div class="form-header">
           <h2>Create Account</h2>
           <p>Join SendIT and start delivering with confidence</p>
         </div>
 
-        <!-- Signup Form -->
         <form (ngSubmit)="onSubmit()" class="signup-form" [class.loading]="isLoading">
 
-          <!-- First Name -->
           <div class="form-group">
             <label for="firstName">First Name *</label>
             <input 
@@ -28,7 +22,6 @@
             >
           </div>
 
-          <!-- Last Name -->
           <div class="form-group">
             <label for="lastName">Last Name *</label>
             <input 
@@ -42,7 +35,6 @@
             >
           </div>
 
-          <!-- Email -->
           <div class="form-group">
             <label for="email">Email Address *</label>
             <input 
@@ -61,7 +53,6 @@
             </div>
           </div>
 
-          <!-- Anonymous Parcels -->
           <div *ngIf="showParcelsFound && anonymousParcels.length > 0" class="anonymous-parcels-section">
             <div class="parcels-found-header">
               <i class="fas fa-box-open"></i>
@@ -89,7 +80,6 @@
             </div>
           </div>
 
-          <!-- Phone -->
           <div class="form-group">
             <label for="phone">Phone Number *</label>
             <input 
@@ -103,7 +93,6 @@
             >
           </div>
 
-          <!-- Password -->
           <div class="form-group">
             <label for="password">Password *</label>
             <div class="password-input-container">
@@ -128,7 +117,6 @@
             </div>
           </div>
 
-          <!-- Submit Button -->
           <button type="submit" class="signup-btn" [disabled]="isLoading">
             <span *ngIf="!isLoading">Create Account</span>
             <span *ngIf="isLoading" class="loading-text">
@@ -138,7 +126,6 @@
           </button>
         </form>
 
-        <!-- Login Redirect -->
         <div class="login-link">
           <p>Already have an account? <a routerLink="/login">Sign in</a></p>
         </div>

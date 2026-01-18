@@ -1,11 +1,10 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Observable, throwError, of } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 import { AuthService } from './auth.service';
 import { ToastService } from '../components/shared/toast/toast.service';
 import { environment } from '../../environments/environment';
-import { switchMap, of, forkJoin } from 'rxjs';
 import { ReviewService } from './review.service';
 
 export interface Parcel {
@@ -167,7 +166,6 @@ export class ParcelsService {
     return throwError(() => new Error(errorMessage));
   }
 
-  // Temporary storage for assign driver flow
   setTempParcelDetails(parcelDetails: any, isReassignment: boolean = false, currentDriverId?: string) {
     this.tempParcelDetails = parcelDetails;
     this.tempReassignmentData = {
@@ -342,71 +340,74 @@ export class ParcelsService {
   }
 
   updateParcelLocation(id: string, location: { latitude: number; longitude: number; currentLocation?: string }): Observable<Parcel> {
-    const url = `${this.baseUrl}/parcels/${id}/location`;
+    const url = this.getApiUrl(`/parcels/${id}/location`);
     return this.http.patch<Parcel>(url, location, { headers: this.getHeaders() })
       .pipe(catchError(error => this.handleError(error)));
   }
 
   // Check for anonymous parcels by email (no auth required)
   getAnonymousParcels(email: string): Observable<Parcel[]> {
-    const url = `${this.baseUrl}/parcels/anonymous/${encodeURIComponent(email)}`;
-    return this.http.get<Parcel[]>(url)
-      .pipe(catchError(error => this.handleError(error)));
+    if (!email || !email.includes('@') || !email.includes('.')) {
+      return of([]);
+    }
+
+    const url = this.getApiUrl(`/parcels/anonymous/${encodeURIComponent(email)}`);
+
+    return this.http.get<Parcel[]>(url).pipe(
+      catchError(error => {
+        console.warn('Anonymous parcel lookup failed:', error);
+        return of([]);
+      })
+    );
   }
 
-  // Get autocomplete suggestions
   getAutocompleteSuggestions(query: string, type: 'name' | 'email' | 'phone' = 'name', limit: number = 10): Observable<any> {
     const params = new HttpParams()
       .set('q', query)
       .set('type', type)
       .set('limit', limit.toString());
     
-    const url = `${this.baseUrl}/parcels/suggestions/autocomplete`;
+    const url = this.getApiUrl(`/parcels/suggestions/autocomplete`);
     return this.http.get(url, { params })
       .pipe(catchError(error => this.handleError(error)));
   }
 
-  // Get contact suggestions for sender or recipient
   getContactSuggestions(query: string, contactType: 'sender' | 'recipient', limit: number = 10, excludeRoles: string[] = ['DRIVER', 'ADMIN']): Observable<any[]> {
     const params = new HttpParams()
       .set('q', query)
       .set('limit', limit.toString())
       .set('excludeRoles', excludeRoles.join(','));
     
-    const url = `${this.baseUrl}/parcels/suggestions/contact/${contactType}`;
+    const url = this.getApiUrl(`/parcels/suggestions/contact/${contactType}`);
     return this.http.get<any[]>(url, { params })
       .pipe(catchError(error => this.handleError(error)));
   }
 
-  // Get driver's assigned parcels
   getDriverParcels(status?: string): Observable<any[]> {
     let params = new HttpParams();
     if (status) {
       params = params.set('status', status);
     }
     
-    const url = `${this.baseUrl}/parcels/assigned`;
+    const url = this.getApiUrl(`/parcels/assigned`);
     return this.http.get<any[]>(url, { 
       headers: this.getHeaders(),
       params 
     }).pipe(catchError(error => this.handleError(error)));
   }
 
-  // Get driver's delivery history
   getDriverDeliveryHistory(): Observable<any[]> {
-    const url = `${this.baseUrl}/parcels/assigned`;
+    const url = this.getApiUrl(`/parcels/assigned`);
     return this.http.get<any[]>(url, { 
       headers: this.getHeaders()
     }).pipe(
       switchMap(parcels => {
-        // Filter for completed deliveries (delivered, completed, delivered_to_recipient)
         const completedDeliveries = parcels.filter(p => 
           p.status === 'delivered' || 
           p.status === 'completed' || 
           p.status === 'delivered_to_recipient'
         );
         
-        // Sort by completion date (most recent first)
         const sortedDeliveries = completedDeliveries.sort((a, b) => {
           const dateA = new Date(a.updatedAt || a.createdAt);
           const dateB = new Date(b.updatedAt || b.createdAt);
@@ -419,14 +420,12 @@ export class ParcelsService {
     );
   }
 
-  // Get driver performance metrics
   getDriverPerformanceMetrics(): Observable<any> {
-    const url = `${this.baseUrl}/parcels/assigned`;
+    const url = this.getApiUrl(`/parcels/assigned`);
     return this.http.get<any[]>(url, { 
       headers: this.getHeaders()
     }).pipe(
       switchMap(parcels => {
-        // Calculate metrics from parcels data
         const totalDeliveries = parcels.length;
         const completedDeliveries = parcels.filter(p => 
           p.status === 'delivered' || p.status === 'completed' || p.status === 'delivered_to_recipient'
@@ -438,22 +437,18 @@ export class ParcelsService {
           p.status === 'assigned' || p.status === 'picked_up' || p.status === 'pending'
         ).length;
         
-        // Calculate today's deliveries
         const today = new Date();
         const todayDeliveries = parcels.filter(p => {
           const parcelDate = new Date(p.createdAt);
           return parcelDate.toDateString() === today.toDateString();
         }).length;
         
-        // Get current user to get driver ID
         const currentUser = this.authService.getCurrentUser();
         const driverId = currentUser?.id;
         
         if (driverId) {
-          // Get driver review summary from dedicated endpoint
           return this.reviewService.getDriverReviewSummary(driverId).pipe(
             switchMap(reviewSummary => {
-              console.log('Driver review summary:', reviewSummary);
               return of({
                 totalDeliveries,
                 completedDeliveries,
@@ -461,14 +456,11 @@ export class ParcelsService {
                 pendingDeliveries,
                 averageRating: reviewSummary.averageRating || 0,
                 todayDeliveries,
-                // Calculate change percentages (simplified)
-                ratingChange: 0, // Could be calculated from historical data
-                deliveriesChange: 0 // Could be calculated from historical data
+                ratingChange: 0,
+                deliveriesChange: 0
               });
             }),
             catchError(error => {
-              console.error('Error getting driver review summary:', error);
-              // Fallback to parcels data if review service fails
               return of({
                 totalDeliveries,
                 completedDeliveries,
@@ -482,7 +474,6 @@ export class ParcelsService {
             })
           );
         } else {
-          // No driver ID available, return basic metrics
           return of({
             totalDeliveries,
             completedDeliveries,
